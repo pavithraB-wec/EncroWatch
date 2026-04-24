@@ -1,0 +1,16 @@
+# ── Python dependencies ─────────────────────────────────────────
+flask>=3.0.0
+geopandas>=0.14.0
+shapely>=2.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+reportlab>=4.0.0
+
+# Google Earth Engine Python API
+earthengine-api>=0.1.380
+
+# Raster processing
+rasterio>=1.3.0
+
+# Optional: OpenCV for morphological cleanup
+# opencv-python>=4.8.0

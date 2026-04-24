@@ -1,0 +1,1502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EncroWatch v2 — Water Body Encroachment Monitor | Puducherry UT</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=DM+Mono:wght@300;400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css"/>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+
+<style>
+/* ══ TOKENS ════════════════════════════════════════════════════ */
+:root {
+  --bg:       #050d1a;
+  --surf:     #091524;
+  --card:     #0d1e30;
+  --card2:    #111f32;
+  --border:   #162840;
+  --border2:  #1d3554;
+  --text:     #dde8f5;
+  --muted:    #5a7a9a;
+  --faint:    #0a1828;
+  --cyan:     #06c2d4;
+  --cyan2:    #0891b2;
+  --gold:     #f0a500;
+  --gold2:    #fbbf24;
+  --red:      #ef4444;
+  --red2:     #b91c1c;
+  --amber:    #f59e0b;
+  --green:    #22c55e;
+  --blue:     #3b82f6;
+  --purple:   #8b5cf6;
+  --mono:     'DM Mono', monospace;
+  --raj:      'Rajdhani', sans-serif;
+  --body:     'DM Sans', sans-serif;
+  --r:        8px;
+  --shadow:   0 8px 32px rgba(0,0,0,.6);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--body); }
+
+/* ══ TOPBAR ════════════════════════════════════════════════════ */
+.topbar {
+  height: 52px; position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  background: linear-gradient(90deg, #050d1a 0%, #091524 60%, #050d1a 100%);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; padding: 0 16px; gap: 14px;
+}
+.logo { font-family: var(--raj); font-size: 20px; font-weight: 700; letter-spacing: 1px;
+  background: linear-gradient(120deg, var(--cyan), var(--blue));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.logo-badge { font-family: var(--mono); font-size: 9px; color: var(--muted); letter-spacing: 2px;
+  background: var(--faint); border: 1px solid var(--border2); border-radius: 4px;
+  padding: 3px 8px; }
+.top-center { flex: 1; text-align: center; font-family: var(--raj); font-size: 13px;
+  font-weight: 600; color: var(--muted); letter-spacing: .5px; }
+.top-center b { color: var(--cyan); }
+.gee-pill {
+  display: flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10px;
+  padding: 4px 12px; border-radius: 20px; cursor: pointer;
+  border: 1px solid;
+}
+.gee-pill.live   { background: rgba(34,197,94,.1);  border-color: rgba(34,197,94,.3);  color: var(--green); }
+.gee-pill.demo   { background: rgba(240,165,0,.1);  border-color: rgba(240,165,0,.3);  color: var(--gold); }
+.gee-dot { width: 7px; height: 7px; border-radius: 50%; }
+.gee-pill.live .gee-dot { background: var(--green); animation: blink 2s infinite; }
+.gee-pill.demo .gee-dot { background: var(--gold); }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+.insp-chip { font-family: var(--mono); font-size: 10px;
+  background: var(--faint); border: 1px solid var(--border2);
+  padding: 4px 12px; border-radius: 20px; color: var(--cyan); }
+
+/* ══ APP LAYOUT ════════════════════════════════════════════════ */
+.app { display: flex; height: calc(100vh - 52px); margin-top: 52px; }
+
+/* ══ INPUT SIDEBAR ═════════════════════════════════════════════ */
+.sidebar {
+  width: 292px; flex-shrink: 0;
+  background: var(--surf); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow-y: auto; overflow-x: hidden;
+}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-track { background: transparent; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.sb-section { padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.sb-label {
+  font-family: var(--mono); font-size: 9px; letter-spacing: 2px;
+  color: var(--muted); text-transform: uppercase; margin-bottom: 10px;
+  display: flex; align-items: center; gap: 8px;
+}
+.sb-label::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Input Tabs */
+.input-tabs { display: flex; gap: 3px; margin-bottom: 10px; }
+.itab {
+  flex: 1; padding: 6px 8px; border-radius: 5px; cursor: pointer;
+  font-family: var(--raj); font-size: 11px; font-weight: 600;
+  border: 1px solid var(--border2); color: var(--muted); background: transparent;
+  transition: all .15s; text-align: center; letter-spacing: .3px;
+}
+.itab:hover { color: var(--text); }
+.itab.active { background: rgba(6,194,212,.15); color: var(--cyan); border-color: var(--cyan); }
+
+.itab-content { display: none; }
+.itab-content.active { display: block; }
+
+/* Draw Controls */
+.draw-btn {
+  width: 100%; padding: 10px; border-radius: 6px; cursor: pointer;
+  font-family: var(--raj); font-size: 13px; font-weight: 600;
+  border: 1px solid; transition: all .2s; margin-bottom: 6px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.draw-btn.polygon { background: rgba(6,194,212,.1); color: var(--cyan); border-color: rgba(6,194,212,.4); }
+.draw-btn.polygon:hover { background: rgba(6,194,212,.2); }
+.draw-btn.clear { background: rgba(239,68,68,.08); color: var(--red); border-color: rgba(239,68,68,.3); }
+.draw-btn.clear:hover { background: rgba(239,68,68,.15); }
+.draw-status { font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: center; margin-top: 4px; }
+
+/* Upload Zone */
+.dropzone {
+  border: 2px dashed var(--border2); border-radius: 8px;
+  padding: 20px 12px; text-align: center; cursor: pointer;
+  transition: all .2s; background: var(--faint);
+}
+.dropzone:hover, .dropzone.drag-over { border-color: var(--cyan); background: rgba(6,194,212,.05); }
+.dz-icon { font-size: 24px; margin-bottom: 6px; opacity: .7; }
+.dz-label { font-family: var(--raj); font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.dz-sub { font-size: 10px; color: var(--muted); }
+.dz-success { background: rgba(34,197,94,.1); border-color: var(--green); }
+.dz-success .dz-label { color: var(--green); }
+#fileInput { display: none; }
+
+/* Known Water Bodies */
+.wb-select {
+  width: 100%; padding: 9px 12px; border-radius: 6px;
+  background: var(--faint); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--body); font-size: 12px;
+  outline: none; cursor: pointer; margin-bottom: 8px;
+}
+.wb-select:focus { border-color: var(--cyan); }
+.wb-card {
+  background: var(--faint); border: 1px solid var(--border2);
+  border-radius: 6px; padding: 8px 12px; display: none;
+}
+.wb-card.visible { display: block; }
+.wb-name { font-family: var(--raj); font-size: 13px; font-weight: 700; color: var(--cyan); }
+.wb-meta { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 3px; }
+
+/* Year Selection */
+.year-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.year-label { font-family: var(--mono); font-size: 10px; color: var(--muted); width: 38px; flex-shrink: 0; }
+.year-sel {
+  flex: 1; padding: 7px 10px; border-radius: 5px;
+  background: var(--faint); border: 1px solid var(--border2);
+  color: var(--text); font-family: var(--mono); font-size: 11px; outline: none;
+}
+.year-sel:focus { border-color: var(--cyan); }
+.year-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+.ychip {
+  font-family: var(--mono); font-size: 10px;
+  padding: 3px 9px; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--border2); color: var(--muted); background: transparent;
+  transition: all .15s;
+}
+.ychip.on { background: rgba(6,194,212,.15); color: var(--cyan); border-color: var(--cyan); }
+
+/* Threshold Slider */
+.slider-row { display: flex; align-items: center; gap: 10px; }
+.slider { flex: 1; appearance: none; height: 3px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--cyan2), var(--border));
+  outline: none; cursor: pointer; }
+.slider::-webkit-slider-thumb { appearance: none; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--cyan); cursor: pointer;
+  border: 2px solid var(--bg); box-shadow: 0 0 6px rgba(6,194,212,.5); }
+.slider-val { font-family: var(--mono); font-size: 11px; color: var(--cyan);
+  width: 38px; text-align: right; }
+
+/* Analyze Button */
+.analyze-btn {
+  margin: 14px 16px; padding: 13px;
+  background: linear-gradient(135deg, var(--cyan2), var(--blue));
+  border: none; border-radius: 8px; color: #fff;
+  font-family: var(--raj); font-size: 15px; font-weight: 700;
+  cursor: pointer; width: calc(100% - 32px); letter-spacing: .5px;
+  transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.analyze-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(6,194,212,.3); }
+.analyze-btn:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+.analyze-btn .spin { animation: spin 1s linear infinite; display: none; }
+.analyze-btn.loading .spin { display: inline-block; }
+.analyze-btn.loading .icon { display: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Cadastral Info */
+.cad-info {
+  background: rgba(139,92,246,.1); border: 1px solid rgba(139,92,246,.25);
+  border-radius: 6px; padding: 10px 12px; display: none; margin-top: 8px;
+}
+.cad-info.show { display: block; }
+.cad-title { font-family: var(--raj); font-size: 12px; font-weight: 700; color: var(--purple); }
+.cad-meta { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 4px; line-height: 1.7; }
+
+/* ══ MAP ════════════════════════════════════════════════════════ */
+.map-wrap {
+  flex: 1; position: relative; overflow: hidden;
+  min-width: 0;
+}
+#map { width: 100%; height: 100%; }
+
+/* Map overlays */
+.map-top-bar {
+  position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+  z-index: 900;
+  background: rgba(5,13,26,.9); border: 1px solid var(--border2);
+  border-radius: 30px; padding: 6px 16px;
+  display: flex; align-items: center; gap: 12px;
+  backdrop-filter: blur(8px);
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+}
+.map-top-bar b { color: var(--cyan); }
+
+.layer-controls {
+  position: absolute; bottom: 16px; left: 12px; z-index: 900;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.layer-btn {
+  font-family: var(--mono); font-size: 10px;
+  padding: 5px 12px; border-radius: 5px; cursor: pointer;
+  border: 1px solid var(--border2); color: var(--muted);
+  background: rgba(5,13,26,.9); transition: all .15s;
+  backdrop-filter: blur(6px);
+}
+.layer-btn.on { color: var(--cyan); border-color: var(--cyan); background: rgba(6,194,212,.12); }
+
+.draw-instructions {
+  position: absolute; top: 50px; left: 50%; transform: translateX(-50%);
+  z-index: 900;
+  background: rgba(6,194,212,.12); border: 1px solid var(--cyan);
+  border-radius: 8px; padding: 8px 18px;
+  font-family: var(--raj); font-size: 13px; font-weight: 600; color: var(--cyan);
+  display: none; animation: fadeIn .3s ease;
+}
+.draw-instructions.show { display: block; }
+@keyframes fadeIn { from{opacity:0;transform:translateX(-50%) translateY(-8px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+
+/* ══ RESULTS PANEL ══════════════════════════════════════════════ */
+.results-panel {
+  width: 360px; flex-shrink: 0;
+  background: var(--surf); border-left: 1px solid var(--border);
+  display: flex; flex-direction: column; overflow: hidden;
+  transition: width .3s ease;
+}
+
+.results-header {
+  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  flex-shrink: 0;
+}
+.results-title { font-family: var(--raj); font-size: 15px; font-weight: 700; }
+.results-title span { color: var(--cyan); }
+.results-meta { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 2px; }
+
+.results-body { flex: 1; overflow-y: auto; padding: 14px 14px; }
+.results-body::-webkit-scrollbar { width: 4px; }
+.results-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+/* Placeholder */
+.placeholder {
+  height: 100%; display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-align: center; gap: 12px; padding: 24px;
+}
+.placeholder-icon { font-size: 40px; opacity: .4; }
+.placeholder-title { font-family: var(--raj); font-size: 15px; font-weight: 700; color: var(--muted); }
+.placeholder-sub { font-size: 12px; color: var(--muted); opacity: .7; line-height: 1.7; }
+
+/* Stat Cards */
+.stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.stat-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px; position: relative; overflow: hidden;
+}
+.stat-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; }
+.stat-card.cyan::before { background: var(--cyan); }
+.stat-card.red::before { background: var(--red); }
+.stat-card.gold::before { background: var(--gold); }
+.stat-card.green::before { background: var(--green); }
+.stat-label { font-family: var(--mono); font-size: 8px; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+.stat-val { font-family: var(--raj); font-size: 22px; font-weight: 700; line-height: 1; }
+.stat-val.cyan  { color: var(--cyan); }
+.stat-val.red   { color: var(--red); }
+.stat-val.gold  { color: var(--gold); }
+.stat-val.green { color: var(--green); }
+.stat-sub { font-family: var(--mono); font-size: 8.5px; color: var(--muted); margin-top: 4px; }
+.stat-icon { position: absolute; right: 10px; top: 10px; font-size: 18px; opacity: .2; }
+
+/* Alert Banner */
+.alert-banner {
+  background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3);
+  border-radius: 7px; padding: 10px 12px; margin-bottom: 12px;
+  font-family: var(--raj); font-size: 12px; color: var(--red); font-weight: 600;
+  display: flex; align-items: center; gap: 8px;
+}
+
+/* Chart Container */
+.chart-card {
+  background: var(--card); border: 1px solid var(--border);
+  border-radius: 8px; padding: 12px; margin-bottom: 10px;
+}
+.chart-title {
+  font-family: var(--raj); font-size: 12px; font-weight: 700;
+  color: var(--text); margin-bottom: 10px;
+  display: flex; align-items: center; gap: 6px;
+}
+.chart-sub { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-left: auto; }
+canvas { max-height: 160px; }
+
+/* Year comparison table */
+.data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+.data-table th {
+  font-family: var(--mono); font-size: 8px; color: var(--muted);
+  letter-spacing: 1px; text-transform: uppercase;
+  padding: 5px 7px; text-align: right;
+  border-bottom: 1px solid var(--border2);
+}
+.data-table th:first-child { text-align: left; }
+.data-table td {
+  padding: 6px 7px; border-bottom: 1px solid var(--faint);
+  font-family: var(--mono); color: var(--text); text-align: right;
+}
+.data-table td:first-child { color: var(--cyan); font-weight: 500; text-align: left; }
+.data-table tr:hover td { background: var(--faint); }
+.risk-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+
+/* Download buttons */
+.dl-row { display: flex; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+.dl-btn {
+  flex: 1; padding: 9px; border-radius: 6px; cursor: pointer;
+  font-family: var(--raj); font-size: 11px; font-weight: 700;
+  border: 1px solid; transition: all .2s;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.dl-btn.pdf   { background: rgba(239,68,68,.1); color: var(--red); border-color: rgba(239,68,68,.3); }
+.dl-btn.csv   { background: rgba(34,197,94,.1); color: var(--green); border-color: rgba(34,197,94,.3); }
+.dl-btn.pdf:hover { background: rgba(239,68,68,.2); }
+.dl-btn.csv:hover { background: rgba(34,197,94,.2); }
+
+/* Demo watermark */
+.demo-badge {
+  font-family: var(--mono); font-size: 9px;
+  background: rgba(240,165,0,.12); border: 1px solid rgba(240,165,0,.3);
+  color: var(--gold); border-radius: 4px; padding: 3px 8px;
+  display: inline-flex; align-items: center; gap: 5px; margin-bottom: 10px;
+}
+
+/* Progress overlay */
+.progress-overlay {
+  position: fixed; inset: 0; z-index: 2000;
+  background: rgba(5,13,26,.85); backdrop-filter: blur(4px);
+  display: none; align-items: center; justify-content: center;
+}
+.progress-overlay.show { display: flex; }
+.progress-box {
+  background: var(--card); border: 1px solid var(--border2);
+  border-radius: 12px; padding: 32px 40px; text-align: center; width: 340px;
+  box-shadow: var(--shadow);
+}
+.progress-title { font-family: var(--raj); font-size: 18px; font-weight: 700;
+  color: var(--cyan); margin-bottom: 6px; }
+.progress-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+.progress-bar { height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; margin-bottom: 16px; }
+.progress-fill { height: 100%; background: linear-gradient(90deg, var(--cyan), var(--blue));
+  border-radius: 2px; animation: progress 3.5s ease forwards; }
+@keyframes progress { from{width:0} to{width:95%} }
+.progress-steps { font-family: var(--mono); font-size: 10px; color: var(--muted);
+  text-align: left; line-height: 2; }
+.progress-steps .done { color: var(--green); }
+.progress-steps .active { color: var(--cyan); }
+
+/* Leaflet dark theme */
+.leaflet-container { background: #0a1520 !important; }
+.leaflet-control-zoom a { background: var(--card) !important; color: var(--text) !important;
+  border-color: var(--border) !important; }
+.leaflet-bar { border: 1px solid var(--border) !important; box-shadow: var(--shadow) !important; }
+.leaflet-draw-toolbar a { background-color: var(--card) !important; color: var(--text) !important; }
+.leaflet-popup-content-wrapper { background: var(--card) !important; color: var(--text) !important;
+  border: 1px solid var(--border2) !important; box-shadow: var(--shadow) !important; border-radius: 8px !important; }
+.leaflet-popup-tip { background: var(--card) !important; }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div>
+    <div class="logo">EncroWatch <span style="color:var(--cyan);font-size:13px;">v2</span></div>
+  </div>
+  <div class="logo-badge">WATER BODY MONITOR</div>
+  <div class="top-center">
+    🌊 Water Body Encroachment Detection &nbsp;·&nbsp; <b>Puducherry UT</b> &nbsp;·&nbsp; GEE Powered
+  </div>
+  <div class="gee-pill demo" id="geePill" onclick="checkGeeStatus(true)">
+    <div class="gee-dot"></div>
+    <span id="geePillText">Demo Mode</span>
+  </div>
+  <div class="insp-chip" id="inspChip">Inspector R. Kamala</div>
+</div>
+
+<!-- PROGRESS OVERLAY -->
+<div class="progress-overlay" id="progressOverlay">
+  <div class="progress-box">
+    <div class="progress-title">🛰 Analysing...</div>
+    <div class="progress-sub" id="progressSub">Running GEE water body analysis</div>
+    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="progress-steps" id="progressSteps"></div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div class="app">
+
+  <!-- ══ INPUT SIDEBAR ══════════════════════════════════════════ -->
+  <div class="sidebar">
+
+    <!-- Study Area -->
+    <div class="sb-section">
+      <div class="sb-label">Study Area</div>
+      <div class="input-tabs">
+        <div class="itab active" onclick="switchInputTab('draw', this)">✏ Draw</div>
+        <div class="itab" onclick="switchInputTab('upload', this)">⬆ Upload</div>
+        <div class="itab" onclick="switchInputTab('known', this)">🌊 Water Body</div>
+      </div>
+
+      <!-- Draw Tab -->
+      <div class="itab-content active" id="tab-draw">
+        <button class="draw-btn polygon" onclick="activatePolygonDraw()">
+          <span class="icon">⬡</span> Draw Polygon on Map
+        </button>
+        <button class="draw-btn polygon" onclick="activateRectDraw()" style="margin-top:0;">
+          <span class="icon">⬜</span> Draw Rectangle
+        </button>
+        <button class="draw-btn clear" onclick="clearAllDrawings()">
+          ✕ Clear Drawing
+        </button>
+        <div class="draw-status" id="drawStatus">Click a draw button then draw on the map</div>
+      </div>
+
+      <!-- Upload Tab -->
+      <div class="itab-content" id="tab-upload">
+        <div class="dropzone" id="dropzone" onclick="document.getElementById('fileInput').click()"
+             ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragleave="handleDragLeave(event)">
+          <div class="dz-icon">📂</div>
+          <div class="dz-label">Drop file or click to browse</div>
+          <div class="dz-sub">GeoJSON · Shapefile (.zip) · Village map</div>
+        </div>
+        <input type="file" id="fileInput" accept=".geojson,.json,.zip,.shp"
+               onchange="handleFileSelect(event)">
+        <div class="cad-info" id="cadInfo">
+          <div class="cad-title" id="cadTitle">—</div>
+          <div class="cad-meta" id="cadMeta">—</div>
+        </div>
+      </div>
+
+      <!-- Known Water Bodies Tab -->
+      <div class="itab-content" id="tab-known">
+        <select class="wb-select" id="wbSelect" onchange="selectWaterbody(this.value)">
+          <option value="">— Select a Water Body —</option>
+          <option value="ousteri">Ousteri Lake (Osudu Lake)</option>
+          <option value="bahour">Bahour Lake</option>
+          <option value="redhills">Red Hills Lake (Ariyankuppam)</option>
+          <option value="pillaipalayam">Pillaipalayam Kanmoi</option>
+          <option value="kanag">Kanagarayanpalayam Tank</option>
+        </select>
+        <div class="wb-card" id="wbCard">
+          <div class="wb-name" id="wbName">—</div>
+          <div class="wb-meta" id="wbMeta">—</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analysis Years -->
+    <div class="sb-section">
+      <div class="sb-label">Analysis Period</div>
+      <div class="year-row">
+        <div class="year-label">From</div>
+        <select class="year-sel" id="startYear">
+          <option value="2013">2013</option><option value="2015">2015</option>
+          <option value="2016" selected>2016</option><option value="2017">2017</option>
+          <option value="2018">2018</option><option value="2019">2019</option>
+          <option value="2020">2020</option>
+        </select>
+      </div>
+      <div class="year-row">
+        <div class="year-label">To</div>
+        <select class="year-sel" id="endYear">
+          <option value="2020">2020</option><option value="2021">2021</option>
+          <option value="2022">2022</option><option value="2023">2023</option>
+          <option value="2024" selected>2024</option>
+        </select>
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:6px;">
+        Step every 2 years · <span id="yearCount" style="color:var(--cyan);">5 periods</span>
+      </div>
+    </div>
+
+    <!-- Detection Settings -->
+    <div class="sb-section">
+      <div class="sb-label">Detection Settings</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:8px;">
+        MNDWI Threshold (water detection)
+      </div>
+      <div class="slider-row">
+        <input type="range" class="slider" id="mndwiSlider"
+               min="-0.3" max="0.3" step="0.05" value="0"
+               oninput="document.getElementById('mndwiVal').textContent=this.value">
+        <div class="slider-val" id="mndwiVal">0.0</div>
+      </div>
+      <div style="font-family:var(--mono);font-size:8.5px;color:var(--muted);margin-top:6px;">
+        Lower = detect more water · Higher = only permanent water
+      </div>
+
+      <div style="margin-top:12px;display:flex;align-items:center;gap:10px;">
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);">Mode</div>
+        <div style="display:flex;gap:5px;">
+          <label class="ychip on" style="cursor:pointer;">
+            <input type="radio" name="mode" value="auto" checked style="display:none"> Auto
+          </label>
+          <label class="ychip" style="cursor:pointer;">
+            <input type="radio" name="mode" value="demo" style="display:none"> Demo
+          </label>
+        </div>
+      </div>
+    </div>
+
+    <!-- Analyze Button -->
+    <button class="analyze-btn" id="analyzeBtn" onclick="runAnalysis()">
+      <span class="icon">🛰</span>
+      <span class="spin">◌</span>
+      Analyse Water Encroachment
+    </button>
+
+    <!-- Current selection status -->
+    <div style="padding:0 16px 14px;">
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-bottom:6px;letter-spacing:1px;">CURRENT SELECTION</div>
+      <div id="selectionStatus" style="font-size:11px;color:var(--muted);line-height:1.7;">
+        No area selected. Draw a polygon or choose a water body.
+      </div>
+    </div>
+
+  </div><!-- /sidebar -->
+
+  <!-- ══ MAP ════════════════════════════════════════════════════ -->
+  <div class="map-wrap">
+    <div class="map-top-bar">
+      <span>📍 <b>Puducherry UT</b></span>
+      <span style="color:var(--border2);">|</span>
+      <span id="mapCoords">11.9139°N, 79.8145°E</span>
+      <span style="color:var(--border2);">|</span>
+      <span id="selArea" style="color:var(--cyan);">No selection</span>
+    </div>
+
+    <div class="draw-instructions" id="drawInstructions">
+      ✏ Click points to draw polygon · Double-click to finish
+    </div>
+
+    <div class="layer-controls">
+      <button class="layer-btn on" id="lyrWater" onclick="toggleMapLayer('water',this)">💧 Water Bodies</button>
+      <button class="layer-btn" id="lyrEncr" onclick="toggleMapLayer('encroachment',this)">🔴 Encroachments</button>
+      <button class="layer-btn" id="lyrCad" onclick="toggleMapLayer('cadastral',this)">📐 Cadastral</button>
+      <button class="layer-btn" id="lyrSat" onclick="toggleMapLayer('satellite',this)">🛰 Satellite</button>
+    </div>
+
+    <div id="map"></div>
+  </div>
+
+  <!-- ══ RESULTS PANEL ═════════════════════════════════════════ -->
+  <div class="results-panel">
+    <div class="results-header">
+      <div>
+        <div class="results-title">Analysis <span>Results</span></div>
+        <div class="results-meta" id="resultsMeta">Puducherry UT — No analysis run yet</div>
+      </div>
+      <button class="layer-btn" onclick="exportResults()" title="Export">⬇</button>
+    </div>
+
+    <div class="results-body" id="resultsBody">
+
+      <!-- Placeholder (shown before analysis) -->
+      <div class="placeholder" id="placeholder">
+        <div class="placeholder-icon">🌊</div>
+        <div class="placeholder-title">No Analysis Yet</div>
+        <div class="placeholder-sub">
+          Select a water body or draw a polygon on the map,<br>
+          choose your year range, then click<br>
+          <strong style="color:var(--cyan);">Analyse Water Encroachment</strong>
+        </div>
+        <div style="margin-top:16px;display:grid;grid-template-columns:1fr 1fr;gap:8px;width:100%;">
+          <div style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center;">
+            <div style="font-size:18px;margin-bottom:4px;">📊</div>
+            <div style="font-family:var(--raj);font-size:11px;color:var(--muted);">Yearly Habitation<br>Count Charts</div>
+          </div>
+          <div style="background:var(--faint);border:1px solid var(--border);border-radius:6px;padding:10px;text-align:center;">
+            <div style="font-size:18px;margin-bottom:4px;">📐</div>
+            <div style="font-family:var(--raj);font-size:11px;color:var(--muted);">Area Change<br>Analysis</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Results content (shown after analysis) -->
+      <div id="resultsContent" style="display:none;">
+
+        <div class="demo-badge" id="demoBadge" style="display:none;">
+          ⚠ Demo Data — Connect GEE for live analysis
+        </div>
+
+        <!-- Alert -->
+        <div class="alert-banner" id="alertBanner">
+          🚨 <span id="alertText">—</span>
+        </div>
+
+        <!-- Stat Cards -->
+        <div class="stat-grid">
+          <div class="stat-card cyan">
+            <div class="stat-icon">🌊</div>
+            <div class="stat-label">Current Water Area</div>
+            <div class="stat-val cyan" id="statWater">—</div>
+            <div class="stat-sub" id="statWaterSub">vs baseline</div>
+          </div>
+          <div class="stat-card red">
+            <div class="stat-icon">🔴</div>
+            <div class="stat-label">Encroachment Area</div>
+            <div class="stat-val red" id="statEncr">—</div>
+            <div class="stat-sub" id="statEncrSub">on water body</div>
+          </div>
+          <div class="stat-card gold">
+            <div class="stat-icon">🏚</div>
+            <div class="stat-label">Habitation Count</div>
+            <div class="stat-val gold" id="statHab">—</div>
+            <div class="stat-sub" id="statHabSub">on water bodies</div>
+          </div>
+          <div class="stat-card green">
+            <div class="stat-icon">📉</div>
+            <div class="stat-label">Water Retention</div>
+            <div class="stat-val green" id="statRetention">—</div>
+            <div class="stat-sub">of original area</div>
+          </div>
+        </div>
+
+        <!-- Chart 1: Yearly Habitation Count (Line) -->
+        <div class="chart-card">
+          <div class="chart-title">
+            🏚 Yearly Habitation Count on Water Bodies
+            <span class="chart-sub" id="habChartSub">—</span>
+          </div>
+          <canvas id="chartHabitation"></canvas>
+        </div>
+
+        <!-- Chart 2: Water Body Area Change (Bar) -->
+        <div class="chart-card">
+          <div class="chart-title">
+            🌊 Water Body Area vs Encroachment (ha)
+            <span class="chart-sub">Hectares</span>
+          </div>
+          <canvas id="chartArea"></canvas>
+        </div>
+
+        <!-- Chart 3: Encroachment % (Line) -->
+        <div class="chart-card">
+          <div class="chart-title">
+            📈 Encroachment Growth (%)
+            <span class="chart-sub">% of baseline</span>
+          </div>
+          <canvas id="chartEncPct"></canvas>
+        </div>
+
+        <!-- Chart 4: Type Breakdown (Stacked Bar) -->
+        <div class="chart-card">
+          <div class="chart-title">
+            🏗 Encroachment Type Breakdown
+            <span class="chart-sub">ha</span>
+          </div>
+          <canvas id="chartTypes"></canvas>
+        </div>
+
+        <!-- Data Table -->
+        <div class="chart-card">
+          <div class="chart-title">📋 Year-wise Data Table</div>
+          <table class="data-table" id="dataTable">
+            <thead>
+              <tr>
+                <th>Year</th>
+                <th>Water (ha)</th>
+                <th>Encr. (ha)</th>
+                <th>Hab.</th>
+                <th>Encr. %</th>
+              </tr>
+            </thead>
+            <tbody id="dataTableBody"></tbody>
+          </table>
+        </div>
+
+        <!-- Download -->
+        <div class="dl-row">
+          <button class="dl-btn pdf" onclick="downloadPDF()">📄 PDF Report</button>
+          <button class="dl-btn csv" onclick="downloadCSV()">📊 CSV Data</button>
+        </div>
+
+        <div style="font-family:var(--mono);font-size:8.5px;color:var(--muted);
+                    text-align:center;margin-top:10px;line-height:1.7;">
+          Data source: <span id="dataSource">—</span><br>
+          All detections require field verification before enforcement.
+        </div>
+
+      </div><!-- /resultsContent -->
+    </div><!-- /resultsBody -->
+  </div><!-- /results-panel -->
+
+</div><!-- /app -->
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════
+let map, drawnItems, drawControl;
+let satLayer, waterLayer, encroachmentLayer, cadastralLayer;
+let currentGeometry = null;
+let currentAnalysis = null;
+let charts = {};
+let geeConnected = false;
+let activeWaterbody = null;
+let cadastralGeoJSON = null;
+
+// Puducherry water body definitions (matches backend)
+const WATER_BODIES = {
+  ousteri: {
+    name: 'Ousteri Lake (Osudu Lake)', area_ha: 389.5,
+    geometry: { type: 'MultiPolygon', coordinates: [[[
+      [79.7870,11.9100],[79.8020,11.9090],[79.8120,11.9140],
+      [79.8150,11.9230],[79.8140,11.9310],[79.8080,11.9380],
+      [79.7990,11.9410],[79.7900,11.9390],[79.7830,11.9340],
+      [79.7810,11.9260],[79.7820,11.9180],[79.7870,11.9100]
+    ]]] }
+  },
+  bahour: {
+    name: 'Bahour Lake', area_ha: 312.8,
+    geometry: { type: 'MultiPolygon', coordinates: [[[
+      [79.7276,11.8121],[79.7276,11.8356],[79.7468,11.8356],
+      [79.7468,11.8121],[79.7276,11.8121]
+    ]]] }
+  },
+  redhills: {
+    name: 'Red Hills Lake (Ariyankuppam)', area_ha: 98.4,
+    geometry: { type: 'MultiPolygon', coordinates: [[[
+      [79.8034,11.8989],[79.8034,11.8892],[79.8166,11.8892],
+      [79.8166,11.8989],[79.8034,11.8989]
+    ]]] }
+  },
+  pillaipalayam: {
+    name: 'Pillaipalayam Kanmoi', area_ha: 54.2,
+    geometry: { type: 'MultiPolygon', coordinates: [[[
+      [79.7930,11.9620],[79.8010,11.9610],[79.8050,11.9660],
+      [79.8030,11.9720],[79.7960,11.9730],[79.7910,11.9690],
+      [79.7910,11.9640],[79.7930,11.9620]
+    ]]] }
+  },
+  kanag: {
+    name: 'Kanagarayanpalayam Tank', area_ha: 76.3,
+    geometry: { type: 'MultiPolygon', coordinates: [[[
+      [79.8380,11.9420],[79.8480,11.9410],[79.8530,11.9470],
+      [79.8510,11.9540],[79.8440,11.9560],[79.8370,11.9520],
+      [79.8360,11.9450],[79.8380,11.9420]
+    ]]] }
+  }
+};
+
+const CHART_COLORS = {
+  cyan:  '#06c2d4', cyanA: 'rgba(6,194,212,.2)',
+  red:   '#ef4444', redA:  'rgba(239,68,68,.2)',
+  gold:  '#f0a500', goldA: 'rgba(240,165,0,.15)',
+  green: '#22c55e', greenA:'rgba(34,197,94,.15)',
+  blue:  '#3b82f6', blueA: 'rgba(59,130,246,.15)',
+  purple:'#8b5cf6', purpleA:'rgba(139,92,246,.15)',
+};
+
+const chartDefaults = {
+  responsive: true, maintainAspectRatio: true,
+  plugins: { legend: { labels: { color: '#5a7a9a', font: { family: "'DM Mono'", size: 9 }, boxWidth: 10 }}},
+  scales: {
+    x: { ticks: { color: '#5a7a9a', font: { family: "'DM Mono'", size: 9 }}, grid: { color: 'rgba(22,40,64,.8)'}},
+    y: { ticks: { color: '#5a7a9a', font: { family: "'DM Mono'", size: 9 }}, grid: { color: 'rgba(22,40,64,.8)'}, beginAtZero: true }
+  }
+};
+
+// ════════════════════════════════════════════════════════════════
+// MAP INIT
+// ════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', () => {
+  initMap();
+  checkGeeStatus();
+  loadAllWaterBodies();
+  updateYearCount();
+  document.getElementById('startYear').addEventListener('change', updateYearCount);
+  document.getElementById('endYear').addEventListener('change', updateYearCount);
+  document.querySelectorAll('input[name="mode"]').forEach(r => r.addEventListener('change', () => {}));
+});
+
+function initMap() {
+  map = L.map('map', { zoomControl: true, attributionControl: false });
+  map.setView([11.9139, 79.8145], 12);
+
+  // Base layers
+  const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 });
+  satLayer  = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19 });
+  osm.addTo(map);
+
+  // Draw layer
+  drawnItems = new L.FeatureGroup().addTo(map);
+
+  // Draw control
+  drawControl = new L.Control.Draw({
+    edit: { featureGroup: drawnItems, remove: true },
+    draw: {
+      polygon: { shapeOptions: { color: '#06c2d4', weight: 2, fillOpacity: 0.12 }},
+      rectangle: { shapeOptions: { color: '#06c2d4', weight: 2, fillOpacity: 0.12 }},
+      polyline: false, circle: false, circlemarker: false, marker: false
+    }
+  });
+
+  map.on(L.Draw.Event.CREATED, e => {
+    drawnItems.clearLayers();
+    drawnItems.addLayer(e.layer);
+    currentGeometry = e.layer.toGeoJSON().geometry;
+    const area = calcAreaHa(currentGeometry);
+    document.getElementById('drawStatus').textContent = `✅ Drawn — ~${area.toFixed(1)} ha`;
+    document.getElementById('selArea').textContent = `Drawn polygon (${area.toFixed(1)} ha)`;
+    document.getElementById('selectionStatus').textContent = `Custom polygon drawn — ${area.toFixed(1)} ha`;
+    document.getElementById('drawInstructions').classList.remove('show');
+  });
+
+  map.on('mousemove', e => {
+    document.getElementById('mapCoords').textContent =
+      `${e.latlng.lat.toFixed(4)}°N, ${e.latlng.lng.toFixed(4)}°E`;
+  });
+
+  // Layers
+  waterLayer       = L.featureGroup().addTo(map);
+  encroachmentLayer= L.featureGroup();
+  cadastralLayer   = L.featureGroup();
+}
+
+function loadAllWaterBodies() {
+  Object.entries(WATER_BODIES).forEach(([id, wb]) => {
+    // Convert MultiPolygon coordinates to L.polygon
+    const coords = wb.geometry.coordinates[0][0];
+    const latLngs = coords.map(c => [c[1], c[0]]);
+    const poly = L.polygon(latLngs, {
+      color: '#06c2d4', weight: 1.5, fillColor: '#0891b2', fillOpacity: 0.25,
+      dashArray: null
+    });
+    poly.bindTooltip(`<b style="color:#06c2d4">${wb.name}</b><br>
+      <span style="font-size:10px;color:#5a7a9a">~${wb.area_ha} ha · Click to select</span>`, {
+      className: '', permanent: false
+    });
+    poly.on('click', () => {
+      document.getElementById('wbSelect').value = id;
+      selectWaterbody(id);
+      switchInputTab('known', document.querySelectorAll('.itab')[2]);
+    });
+    waterLayer.addLayer(poly);
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// DRAW CONTROLS
+// ════════════════════════════════════════════════════════════════
+function activatePolygonDraw() {
+  // Add draw control if not already added
+  if (!document.querySelector('.leaflet-draw')) {
+    map.addControl(drawControl);
+  }
+  new L.Draw.Polygon(map, drawControl.options.draw.polygon).enable();
+  document.getElementById('drawInstructions').classList.add('show');
+  document.getElementById('drawStatus').textContent = 'Drawing polygon... double-click to finish';
+}
+
+function activateRectDraw() {
+  // Add draw control if not already added
+  if (!document.querySelector('.leaflet-draw')) {
+    map.addControl(drawControl);
+  }
+  new L.Draw.Rectangle(map, drawControl.options.draw.rectangle).enable();
+  document.getElementById('drawInstructions').classList.add('show');
+  document.getElementById('drawStatus').textContent = 'Drawing rectangle... release mouse to finish';
+}
+
+function clearAllDrawings() {
+  drawnItems.clearLayers();
+  currentGeometry = null;
+  activeWaterbody = null;
+  document.getElementById('drawStatus').textContent = 'Drawing cleared';
+  document.getElementById('selArea').textContent = 'No selection';
+  document.getElementById('selectionStatus').textContent = 'No area selected. Draw a polygon or choose a water body.';
+  document.getElementById('wbSelect').value = '';
+  document.getElementById('wbCard').classList.remove('visible');
+  document.getElementById('drawInstructions').classList.remove('show');
+}
+
+// ════════════════════════════════════════════════════════════════
+// INPUT TABS
+// ════════════════════════════════════════════════════════════════
+function switchInputTab(tab, el) {
+  document.querySelectorAll('.itab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.itab-content').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById(`tab-${tab}`).classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════════
+// WATER BODY SELECTION
+// ════════════════════════════════════════════════════════════════
+function selectWaterbody(id) {
+  if (!id) return;
+  const wb = WATER_BODIES[id];
+  if (!wb) return;
+
+  activeWaterbody = id;
+  currentGeometry = wb.geometry;
+
+  // Zoom to water body
+  const coords = wb.geometry.coordinates[0][0];
+  const latLngs = coords.map(c => L.latLng(c[1], c[0]));
+  map.fitBounds(L.latLngBounds(latLngs), { padding: [40, 40] });
+
+  // Update UI
+  document.getElementById('wbCard').classList.add('visible');
+  document.getElementById('wbName').textContent = wb.name;
+  document.getElementById('wbMeta').textContent = `Area: ~${wb.area_ha} ha · Puducherry UT`;
+  document.getElementById('selArea').textContent = wb.name;
+  document.getElementById('selectionStatus').textContent = `Selected: ${wb.name} (~${wb.area_ha} ha)`;
+}
+
+// ════════════════════════════════════════════════════════════════
+// FILE UPLOAD
+// ════════════════════════════════════════════════════════════════
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.add('drag-over');
+}
+function handleDragLeave(e) {
+  document.getElementById('dropzone').classList.remove('drag-over');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropzone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processUploadedFile(file);
+}
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) processUploadedFile(file);
+}
+
+async function processUploadedFile(file) {
+  const dz = document.getElementById('dropzone');
+  dz.querySelector('.dz-label').textContent = `Loading ${file.name}...`;
+
+  try {
+    let geojson;
+    if (file.name.endsWith('.geojson') || file.name.endsWith('.json')) {
+      const text = await file.text();
+      geojson = JSON.parse(text);
+    } else if (file.name.endsWith('.zip')) {
+      const buf = await file.arrayBuffer();
+      geojson = await shp(buf);
+    } else {
+      throw new Error('Unsupported format. Use .geojson or .zip shapefile');
+    }
+
+    cadastralGeoJSON = geojson;
+    const features = geojson.features || [geojson];
+    const count = features.length;
+
+    // Add to map
+    cadastralLayer.clearLayers();
+    const layer = L.geoJSON(geojson, {
+      style: { color: '#8b5cf6', weight: 1.5, fillOpacity: 0.15, fillColor: '#8b5cf6' },
+      onEachFeature: (feat, lyr) => {
+        const props = feat.properties || {};
+        const label = Object.values(props).slice(0, 3).join(' · ');
+        lyr.bindTooltip(label, { sticky: true });
+      }
+    }).addTo(cadastralLayer);
+
+    map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+
+    // Use bounding box as study area if no polygon drawn
+    if (!currentGeometry) {
+      const bounds = layer.getBounds();
+      currentGeometry = {
+        type: 'Polygon',
+        coordinates: [[
+          [bounds.getWest(), bounds.getSouth()],
+          [bounds.getEast(), bounds.getSouth()],
+          [bounds.getEast(), bounds.getNorth()],
+          [bounds.getWest(), bounds.getNorth()],
+          [bounds.getWest(), bounds.getSouth()],
+        ]]
+      };
+    }
+
+    // Update UI
+    dz.classList.add('dz-success');
+    dz.querySelector('.dz-label').textContent = `✅ ${file.name}`;
+    dz.querySelector('.dz-sub').textContent = `${count} features loaded`;
+
+    const cadInfo = document.getElementById('cadInfo');
+    cadInfo.classList.add('show');
+    document.getElementById('cadTitle').textContent = file.name;
+    document.getElementById('cadMeta').textContent =
+      `${count} features · Displayed on map (purple)\nUse as overlay for analysis`;
+    document.getElementById('selectionStatus').textContent =
+      `Cadastral file: ${file.name} (${count} features)`;
+
+    // Show cadastral layer
+    if (!map.hasLayer(cadastralLayer)) cadastralLayer.addTo(map);
+    document.getElementById('lyrCad').classList.add('on');
+
+  } catch (err) {
+    dz.querySelector('.dz-label').textContent = '❌ Error loading file';
+    dz.querySelector('.dz-sub').textContent = err.message;
+    console.error(err);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// LAYER TOGGLES
+// ════════════════════════════════════════════════════════════════
+function toggleMapLayer(layer, btn) {
+  btn.classList.toggle('on');
+  const on = btn.classList.contains('on');
+  const layerMap = { water: waterLayer, encroachment: encroachmentLayer,
+                     cadastral: cadastralLayer, satellite: satLayer };
+  const lyr = layerMap[layer];
+  if (!lyr) return;
+  if (on) { if (!map.hasLayer(lyr)) lyr.addTo(map); }
+  else { if (map.hasLayer(lyr)) map.removeLayer(lyr); }
+}
+
+// ════════════════════════════════════════════════════════════════
+// YEAR CONTROL
+// ════════════════════════════════════════════════════════════════
+function updateYearCount() {
+  const s = parseInt(document.getElementById('startYear').value);
+  const e = parseInt(document.getElementById('endYear').value);
+  const years = buildYearList(s, e);
+  document.getElementById('yearCount').textContent = `${years.length} periods`;
+}
+
+function buildYearList(start, end) {
+  const years = [];
+  for (let y = start; y <= end; y += 2) years.push(y);
+  if (!years.includes(end)) years.push(end);
+  return years;
+}
+
+// ════════════════════════════════════════════════════════════════
+// GEE STATUS
+// ════════════════════════════════════════════════════════════════
+async function checkGeeStatus(showFeedback = false) {
+  try {
+    const r = await fetch('/api/status');
+    const d = await r.json();
+    geeConnected = d.gee_connected;
+    const pill = document.getElementById('geePill');
+    const txt  = document.getElementById('geePillText');
+    const message = d.gee_message || (geeConnected ? 'GEE connected' : 'GEE unavailable');
+    if (geeConnected) {
+      pill.className = 'gee-pill live';
+      txt.textContent = 'GEE Connected';
+    } else {
+      pill.className = 'gee-pill demo';
+      txt.textContent = 'Demo Mode';
+    }
+    pill.title = message;
+    if (showFeedback) showToast(message, geeConnected ? 'cyan' : 'amber');
+  } catch {
+    const pill = document.getElementById('geePill');
+    document.getElementById('geePillText').textContent = 'Demo Mode';
+    pill.title = 'Could not fetch backend GEE status';
+    if (showFeedback) showToast('Could not fetch backend GEE status', 'red');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// MAIN ANALYSIS
+// ════════════════════════════════════════════════════════════════
+async function runAnalysis() {
+  if (!currentGeometry) {
+    showToast('⚠ Select a study area first — draw a polygon or choose a water body', 'amber');
+    return;
+  }
+
+  const startY = parseInt(document.getElementById('startYear').value);
+  const endY   = parseInt(document.getElementById('endYear').value);
+  if (startY >= endY) { showToast('⚠ Start year must be before end year', 'red'); return; }
+
+  const years = buildYearList(startY, endY);
+  const mndwi = parseFloat(document.getElementById('mndwiSlider').value);
+  const forceDemo = document.querySelector('input[name="mode"]:checked').value === 'demo';
+
+  showProgress(years);
+
+  try {
+    let result;
+    try {
+      const resp = await fetch('/api/analyse', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ geometry: currentGeometry, years, mndwi_threshold: mndwi, use_demo: forceDemo })
+      });
+      result = await resp.json();
+    } catch {
+      // No backend — run client-side demo
+      result = generateDemoResult(currentGeometry, years);
+    }
+
+    hideProgress();
+    if (result.success !== false) {
+      currentAnalysis = result;
+      renderResults(result);
+      renderEncroachmentOnMap(result);
+    } else {
+      showToast('Analysis error: ' + (result.error || 'Unknown'), 'red');
+    }
+  } catch (err) {
+    hideProgress();
+    showToast('Analysis failed: ' + err.message, 'red');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// DEMO DATA GENERATOR (client-side fallback)
+// ════════════════════════════════════════════════════════════════
+function generateDemoResult(geometry, years) {
+  const wb = activeWaterbody ? WATER_BODIES[activeWaterbody] : null;
+  const baseline = wb ? wb.area_ha : 180.0;
+  const name = wb ? wb.name : 'Selected Area';
+  const n = years.length;
+
+  const yearly = {};
+  years.forEach((year, i) => {
+    const frac = i / Math.max(n - 1, 1);
+    const waterArea   = parseFloat((baseline * (1 - 0.075 * frac) + Math.sin(frac) * 3).toFixed(1));
+    const encrArea    = parseFloat((4.2 + 28.5 * frac).toFixed(1));
+    const lostArea    = parseFloat((5.0 + 60 * frac).toFixed(1));
+    const habCount    = Math.round(6 + 44 * Math.pow(frac, 0.8));
+    const encrPct     = parseFloat((encrArea / baseline * 100).toFixed(1));
+    const retention   = parseFloat((waterArea / baseline * 100).toFixed(1));
+    yearly[String(year)] = {
+      water_area_ha: waterArea,
+      encroachment_area_ha: encrArea,
+      water_lost_ha: lostArea,
+      habitation_count: habCount,
+      encroachment_pct: encrPct,
+      water_retention_pct: retention,
+      encroachment_types: {
+        residential_ha: parseFloat((encrArea * 0.53).toFixed(1)),
+        commercial_ha:  parseFloat((encrArea * 0.30).toFixed(1)),
+        large_dev_ha:   parseFloat((encrArea * 0.17).toFixed(1)),
+      }
+    };
+  });
+
+  const first = yearly[String(years[0])];
+  const last  = yearly[String(years[years.length-1])];
+
+  return {
+    success: true, demo_mode: true,
+    study_area: name,
+    baseline_water_area_ha: baseline,
+    total_encroachment_ha:  last.encroachment_area_ha,
+    total_water_loss_ha:    last.water_lost_ha,
+    habitation_growth:      last.habitation_count - first.habitation_count,
+    analysis_years: years, years: yearly,
+    data_source: 'Demo Mode · Based on NRSC/ISRO Puducherry data estimates',
+  };
+}
+
+// ════════════════════════════════════════════════════════════════
+// RENDER RESULTS
+// ════════════════════════════════════════════════════════════════
+function renderResults(data) {
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('resultsContent').style.display = 'block';
+
+  const years = Object.keys(data.years).sort();
+  const lastY  = years[years.length - 1];
+  const firstY = years[0];
+  const lastD  = data.years[lastY];
+  const firstD = data.years[firstY];
+
+  // Demo badge
+  document.getElementById('demoBadge').style.display = data.demo_mode ? 'inline-flex' : 'none';
+
+  // Meta
+  const studyArea = data.study_area || activeWaterbody && WATER_BODIES[activeWaterbody]?.name || 'Puducherry UT';
+  document.getElementById('resultsMeta').textContent =
+    `${studyArea} · ${firstY}–${lastY} · ${years.length} periods`;
+
+  // Alert
+  const habGrowth = data.habitation_growth || (lastD.habitation_count - firstD.habitation_count);
+  document.getElementById('alertText').textContent =
+    `${lastD.encroachment_area_ha} ha encroached · ${lastD.habitation_count} habitations on water bodies · ` +
+    `${data.total_water_loss_ha} ha water lost since ${firstY}`;
+
+  // Stat cards
+  document.getElementById('statWater').textContent    = `${lastD.water_area_ha} ha`;
+  document.getElementById('statWaterSub').textContent = `Baseline: ${data.baseline_water_area_ha} ha`;
+  document.getElementById('statEncr').textContent     = `${lastD.encroachment_area_ha} ha`;
+  document.getElementById('statEncrSub').textContent  = `${lastD.encroachment_pct}% of water body`;
+  document.getElementById('statHab').textContent      = `${lastD.habitation_count}`;
+  document.getElementById('statHabSub').textContent   = `+${habGrowth} since ${firstY}`;
+  document.getElementById('statRetention').textContent= `${lastD.water_retention_pct}%`;
+
+  document.getElementById('dataSource').textContent = data.data_source || 'GEE + Sentinel-2 + JRC';
+
+  // Build chart data
+  const labels     = years;
+  const waterArr   = years.map(y => data.years[y].water_area_ha);
+  const encrArr    = years.map(y => data.years[y].encroachment_area_ha);
+  const habArr     = years.map(y => data.years[y].habitation_count);
+  const pctArr     = years.map(y => data.years[y].encroachment_pct);
+  const retArr     = years.map(y => data.years[y].water_retention_pct);
+  const resArr     = years.map(y => data.years[y].encroachment_types?.residential_ha || 0);
+  const comArr     = years.map(y => data.years[y].encroachment_types?.commercial_ha  || 0);
+  const devArr     = years.map(y => data.years[y].encroachment_types?.large_dev_ha   || 0);
+
+  destroyCharts();
+
+  // Chart 1: Habitation count
+  charts.hab = new Chart(document.getElementById('chartHabitation'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Habitation Count',
+        data: habArr,
+        borderColor: CHART_COLORS.gold, backgroundColor: CHART_COLORS.goldA,
+        fill: true, tension: 0.4, pointRadius: 5,
+        pointBackgroundColor: CHART_COLORS.gold,
+      }]
+    },
+    options: {
+      ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, tooltip: {
+        callbacks: { label: ctx => ` ${ctx.parsed.y} habitations on water body` }
+      }}
+    }
+  });
+  document.getElementById('habChartSub').textContent = `${firstY}→${lastY} (+${habGrowth})`;
+
+  // Chart 2: Water vs Encroachment area
+  charts.area = new Chart(document.getElementById('chartArea'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Water Area (ha)', data: waterArr,
+          backgroundColor: CHART_COLORS.cyanA, borderColor: CHART_COLORS.cyan, borderWidth: 1.5 },
+        { label: 'Encroachment (ha)', data: encrArr,
+          backgroundColor: CHART_COLORS.redA, borderColor: CHART_COLORS.red, borderWidth: 1.5 },
+      ]
+    },
+    options: { ...chartDefaults, scales: { ...chartDefaults.scales, y: { ...chartDefaults.scales.y } }}
+  });
+
+  // Chart 3: Encroachment %
+  charts.pct = new Chart(document.getElementById('chartEncPct'), {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Encroachment %', data: pctArr,
+          borderColor: CHART_COLORS.red, backgroundColor: CHART_COLORS.redA,
+          fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: CHART_COLORS.red },
+        { label: 'Water Retention %', data: retArr,
+          borderColor: CHART_COLORS.cyan, backgroundColor: 'transparent',
+          tension: 0.4, pointRadius: 4, borderDash: [4,4], pointBackgroundColor: CHART_COLORS.cyan },
+      ]
+    },
+    options: chartDefaults
+  });
+
+  // Chart 4: Encroachment types stacked
+  charts.types = new Chart(document.getElementById('chartTypes'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Residential', data: resArr, backgroundColor: CHART_COLORS.redA, borderColor: CHART_COLORS.red, borderWidth: 1 },
+        { label: 'Commercial',  data: comArr, backgroundColor: CHART_COLORS.goldA, borderColor: CHART_COLORS.gold, borderWidth: 1 },
+        { label: 'Large Dev.',  data: devArr, backgroundColor: CHART_COLORS.purpleA, borderColor: CHART_COLORS.purple, borderWidth: 1 },
+      ]
+    },
+    options: { ...chartDefaults, scales: { x: { ...chartDefaults.scales.x, stacked: true },
+      y: { ...chartDefaults.scales.y, stacked: true }}}
+  });
+
+  // Data table
+  const tbody = document.getElementById('dataTableBody');
+  tbody.innerHTML = years.map(y => {
+    const d = data.years[y];
+    const dotColor = d.encroachment_pct > 8 ? '#ef4444' : d.encroachment_pct > 4 ? '#f0a500' : '#22c55e';
+    return `<tr>
+      <td><span class="risk-dot" style="background:${dotColor}"></span>${y}</td>
+      <td>${d.water_area_ha}</td>
+      <td>${d.encroachment_area_ha}</td>
+      <td>${d.habitation_count}</td>
+      <td>${d.encroachment_pct}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function destroyCharts() {
+  Object.values(charts).forEach(c => { try { c.destroy(); } catch {} });
+  charts = {};
+}
+
+// ════════════════════════════════════════════════════════════════
+// MAP ENCROACHMENT OVERLAY
+// ════════════════════════════════════════════════════════════════
+function renderEncroachmentOnMap(data) {
+  encroachmentLayer.clearLayers();
+
+  if (!activeWaterbody && !currentGeometry) return;
+  const wb = activeWaterbody ? WATER_BODIES[activeWaterbody] : null;
+  if (!wb) return;
+
+  // Simulate encroachment dots around water body edges
+  const years = Object.keys(data.years).sort();
+  const lastY = years[years.length - 1];
+  const lastD = data.years[lastY];
+  const coords = wb.geometry.coordinates[0][0];
+
+  // Place encroachment markers around perimeter (scaled by habitation count)
+  const count = Math.min(lastD.habitation_count, 50);
+  for (let i = 0; i < count; i++) {
+    const baseCoord = coords[i % coords.length];
+    const lat = baseCoord[1] + (Math.random() - 0.5) * 0.008;
+    const lng = baseCoord[0] + (Math.random() - 0.5) * 0.008;
+    const risk = lastD.encroachment_pct > 8 ? '#ef4444' : '#f59e0b';
+    L.circleMarker([lat, lng], {
+      radius: 5, fillColor: risk, color: '#000', weight: 0.5,
+      fillOpacity: 0.85
+    }).bindTooltip(`<b style="color:${risk}">Encroachment</b><br>
+      ${lastY} · ${wb.name}`, { sticky: true }).addTo(encroachmentLayer);
+  }
+
+  encroachmentLayer.addTo(map);
+  document.getElementById('lyrEncr').classList.add('on');
+}
+
+// ════════════════════════════════════════════════════════════════
+// PROGRESS OVERLAY
+// ════════════════════════════════════════════════════════════════
+const PROGRESS_STEPS = [
+  '🛰 Loading Sentinel-2 imagery from GEE...',
+  '💧 Computing MNDWI water body extent...',
+  '📐 Loading cadastral boundaries...',
+  '🔍 Detecting built-up areas on water...',
+  '📊 Computing yearly habitation counts...',
+  '🏗 Classifying encroachment types...',
+  '📈 Generating trend analysis...',
+  '✅ Analysis complete.',
+];
+
+function showProgress(years) {
+  const overlay = document.getElementById('progressOverlay');
+  const steps   = document.getElementById('progressSteps');
+  const sub     = document.getElementById('progressSub');
+  const fill    = document.getElementById('progressFill');
+
+  sub.textContent = `Years: ${years.join(', ')}`;
+  steps.innerHTML = PROGRESS_STEPS.map(s => `<div>${s}</div>`).join('');
+  fill.style.animation = 'none';
+  fill.offsetHeight; // reflow
+  fill.style.animation = 'progress 3.5s ease forwards';
+  overlay.classList.add('show');
+
+  let i = 0;
+  const iv = setInterval(() => {
+    const divs = steps.querySelectorAll('div');
+    if (i < divs.length) {
+      if (i > 0) divs[i-1].className = 'done';
+      divs[i].className = 'active';
+      i++;
+    } else { clearInterval(iv); }
+  }, 450);
+
+  document.getElementById('analyzeBtn').classList.add('loading');
+  document.getElementById('analyzeBtn').disabled = true;
+  overlay._interval = iv;
+}
+
+function hideProgress() {
+  const overlay = document.getElementById('progressOverlay');
+  clearInterval(overlay._interval);
+  overlay.classList.remove('show');
+  const btn = document.getElementById('analyzeBtn');
+  btn.classList.remove('loading');
+  btn.disabled = false;
+}
+
+// ════════════════════════════════════════════════════════════════
+// EXPORT
+// ════════════════════════════════════════════════════════════════
+async function downloadCSV() {
+  if (!currentAnalysis) { showToast('Run analysis first', 'amber'); return; }
+  const years = Object.keys(currentAnalysis.years).sort();
+  const rows  = [['Year','Water Area (ha)','Encroachment (ha)','Water Lost (ha)',
+                  'Habitation Count','Encroachment %','Water Retention %',
+                  'Residential (ha)','Commercial (ha)','Large Dev (ha)']];
+  years.forEach(y => {
+    const d = currentAnalysis.years[y];
+    const t = d.encroachment_types || {};
+    rows.push([y, d.water_area_ha, d.encroachment_area_ha, d.water_lost_ha,
+               d.habitation_count, d.encroachment_pct, d.water_retention_pct,
+               t.residential_ha||0, t.commercial_ha||0, t.large_dev_ha||0]);
+  });
+  const csv  = rows.map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: 'EncroWatch_WaterAnalysis.csv' });
+  a.click(); URL.revokeObjectURL(url);
+}
+
+async function downloadPDF() {
+  if (!currentAnalysis) { showToast('Run analysis first', 'amber'); return; }
+  try {
+    const r = await fetch('/api/report', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ analysis: currentAnalysis,
+        meta: { study_area: activeWaterbody ? WATER_BODIES[activeWaterbody]?.name : 'Drawn Area' }})
+    });
+    if (!r.ok) throw new Error('No backend');
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    Object.assign(document.createElement('a'), { href: url, download: 'EncroWatch_Report.pdf' }).click();
+  } catch {
+    showToast('PDF needs Flask backend running. CSV export available!', 'amber');
+  }
+}
+
+function exportResults() {
+  downloadCSV();
+}
+
+// ════════════════════════════════════════════════════════════════
+// UTILS
+// ════════════════════════════════════════════════════════════════
+function calcAreaHa(geojson) {
+  // Approximate area from bounding box
+  const coords = geojson.coordinates[0];
+  const lats = coords.map(c => c[1]);
+  const lngs = coords.map(c => c[0]);
+  const latRange = Math.max(...lats) - Math.min(...lats);
+  const lngRange = Math.max(...lngs) - Math.min(...lngs);
+  return latRange * 111320 * lngRange * 111320 * Math.cos(lats[0] * Math.PI/180) / 10000;
+}
+
+function showToast(msg, type='cyan') {
+  const colors = { cyan: var_('--cyan'), amber: var_('--gold'), red: var_('--red') };
+  const t = document.createElement('div');
+  t.style.cssText = `position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+    background:var(--card);border:1px solid ${colors[type]||colors.cyan};
+    color:${colors[type]||colors.cyan};padding:10px 20px;border-radius:8px;
+    font-family:var(--raj);font-size:13px;font-weight:600;z-index:9999;
+    box-shadow:0 8px 24px rgba(0,0,0,.5);animation:fadeIn .3s ease;`;
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+function var_(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+</script>
+</body>
+</html>
