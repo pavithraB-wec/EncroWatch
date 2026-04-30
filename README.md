@@ -1,3 +1,4 @@
+![EncroWatch Result](results.png)
 # EncroWatch v2 🌊
 ## Water Body Encroachment Detector — Puducherry UT
 ### Innovation Puducherry 2026 | GEE-Powered Backend
